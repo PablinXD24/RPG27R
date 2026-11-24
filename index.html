@@ -2,106 +2,74 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
-  <title>Mapa da Campanha • Receptor ao Vivo D&D</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Receptor de Cartografia • Tomo D&D</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      background-color: #050403;
+    body {
+      background: #050403;
       color: #f4ead5;
+      font-family: 'Cinzel', Georgia, serif;
+      margin: 0;
       overflow: hidden;
       user-select: none;
-      -webkit-user-select: none;
     }
     .font-display { font-family: 'Cinzel Decorative', Georgia, serif; }
-    .font-heading { font-family: 'Cinzel', Georgia, serif; }
     .font-mono-num { font-family: 'JetBrains Mono', monospace; }
-
     .tactical-grid-overlay {
       background-size: 48px 48px;
       background-image:
         linear-gradient(to right, rgba(229, 193, 88, 0.28) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(229, 193, 88, 0.28) 1px, transparent 1px);
     }
-
-    @keyframes pulseGlow {
-      0%, 100% { box-shadow: 0 0 18px rgba(197, 155, 39, 0.25); }
-      50% { box-shadow: 0 0 36px rgba(197, 155, 39, 0.55); }
-    }
-    .emblem-glow {
-      animation: pulseGlow 3.2s ease-in-out infinite;
-    }
   </style>
 </head>
-<body class="w-screen h-screen bg-[#050403] flex flex-col items-center justify-center relative overflow-hidden">
+<body class="w-screen h-screen flex flex-col items-center justify-center relative">
 
-  <!-- Barra Flutuante Discreta (aparece ao passar o mouse ou tocar no topo) -->
-  <div id="hudBar" class="fixed top-3 inset-x-3 z-40 flex items-center justify-between gap-2 pointer-events-none opacity-20 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
-    <!-- Info do Mapa Atual -->
-    <div class="pointer-events-auto flex items-center gap-2.5 bg-black/80 backdrop-blur-md border border-[#c59b27]/45 rounded-full px-3.5 py-1.5 shadow-xl max-w-[65vw]">
-      <span id="connectionDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0" title="Status de Conexão"></span>
-      <div class="min-w-0">
-        <div id="mapTitleLabel" class="font-heading text-xs sm:text-sm font-bold text-[#e5c158] truncate">Aguardando Transmissão do Mestre...</div>
-        <div id="chapterSubLabel" class="text-[10px] font-heading uppercase tracking-wider text-[#d6c29f]/80 truncate hidden"></div>
-      </div>
-    </div>
-
-    <!-- Controles de Zoom & Tela Cheia -->
-    <div class="pointer-events-auto flex items-center gap-1.5 bg-black/80 backdrop-blur-md border border-[#c59b27]/45 rounded-full px-2.5 py-1 shadow-xl shrink-0">
-      <button onclick="receiver.adjustZoom(-0.15)" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-[#f4ead5] font-mono-num text-base flex items-center justify-center cursor-pointer" title="Reduzir Zoom">-</button>
-      <button onclick="receiver.resetTransform()" id="zoomResetBtn" class="px-2.5 h-8 rounded-full bg-white/10 hover:bg-white/20 text-[#f4ead5] font-mono-num text-xs cursor-pointer" title="Ajustar Mapa à Tela">100%</button>
-      <button onclick="receiver.adjustZoom(0.15)" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-[#f4ead5] font-mono-num text-base flex items-center justify-center cursor-pointer" title="Aumentar Zoom">+</button>
-      <button onclick="receiver.toggleFullscreen()" class="w-8 h-8 rounded-full bg-[#8b1e1e] hover:bg-[#a62424] border border-[#e5c158]/60 text-[#f4ead5] text-xs flex items-center justify-center cursor-pointer" title="Tela Cheia">⛶</button>
-    </div>
+  <!-- Barra Superior Discreta -->
+  <div class="absolute top-3 right-3 z-30 flex items-center gap-2 bg-black/80 backdrop-blur-md border border-[#c59b27]/50 rounded-full px-3 py-1.5 opacity-35 hover:opacity-100 transition-opacity duration-300">
+    <span id="roomStatusPill" class="text-[11px] font-mono-num font-bold text-emerald-400 px-2 border-r border-[#c59b27]/30">SALA: --</span>
+    <span id="mapTitleLabel" class="text-xs text-[#e5c158] px-2 max-w-[200px] truncate">Aguardando emissão...</span>
+    <button onclick="adjustZoom(-0.15)" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 font-mono-num text-sm cursor-pointer">-</button>
+    <button onclick="resetTransform()" class="px-2 h-7 rounded-full bg-white/10 hover:bg-white/20 font-mono-num text-[11px] cursor-pointer">100%</button>
+    <button onclick="adjustZoom(0.15)" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 font-mono-num text-sm cursor-pointer">+</button>
+    <button onclick="changeRoomPrompt()" class="px-2.5 h-7 rounded-full bg-[#2b1d0e] hover:bg-[#3d2914] border border-[#c59b27]/50 text-[10px] uppercase cursor-pointer">Trocar Sala</button>
+    <button onclick="toggleFullscreen()" class="w-7 h-7 rounded-full bg-[#8b1e1e] hover:bg-[#a62424] text-xs cursor-pointer" title="Tela Cheia">⛶</button>
   </div>
 
-  <!-- Área Principal de Exibição do Mapa (Arrastável / Zoom) -->
-  <main id="mapViewport" class="w-full h-full flex items-center justify-center relative overflow-hidden cursor-grab active:cursor-grabbing">
-
-    <!-- Palco do Mapa Emitido -->
-    <div id="mapStage" class="hidden relative inline-flex items-center justify-center transition-transform duration-100 ease-out">
-      <img id="mapImage" src="" alt="Mapa Emitido pelo Mestre" class="max-w-screen max-h-screen w-auto h-auto object-contain block pointer-events-none select-none" />
-
-      <!-- Camada de Grade Tática -->
-      <div id="gridOverlay" class="hidden absolute inset-0 tactical-grid-overlay pointer-events-none"></div>
-
-      <!-- Camada de Tokens dos Heróis e Pinos -->
-      <div id="markersLayer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
-
-      <!-- Camada de Névoa de Guerra -->
-      <div id="fogOverlay" class="hidden absolute inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center pointer-events-none transition-all duration-300">
-        <div class="text-center px-6 py-5 rounded-2xl bg-black/75 border border-[#c59b27]/50 shadow-2xl">
-          <span class="text-4xl block mb-2">🌫️</span>
-          <span class="font-display text-sm sm:text-lg text-[#e5c158] tracking-widest uppercase block">Território Oculto pelo Mestre</span>
-          <span class="text-xs text-[#d6c29f]/75 mt-1 block">Aguarde a revelação do cenário</span>
+  <!-- Palco Principal -->
+  <div id="viewport" class="w-full h-full flex items-center justify-center relative overflow-hidden cursor-grab active:cursor-grabbing">
+    <div id="stageContainer" class="hidden relative inline-flex items-center justify-center transition-transform duration-150 ease-out">
+      <img id="mapImage" src="" alt="Mapa Emitido" class="max-w-screen max-h-screen w-auto h-auto object-contain block pointer-events-none" />
+      <div id="gridLayer" class="hidden absolute inset-0 tactical-grid-overlay pointer-events-none"></div>
+      <div id="fogLayer" class="hidden absolute inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center pointer-events-none">
+        <div class="text-center px-6 py-4 rounded-2xl bg-black/75 border border-[#c59b27]/40">
+          <span class="text-3xl block mb-1">🌫️</span>
+          <span class="font-display text-sm sm:text-base text-[#e5c158] tracking-widest uppercase">Território Oculto pelo Mestre</span>
         </div>
       </div>
+      <div id="markersLayer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
     </div>
 
-    <!-- Estado de Espera (Quando nenhum mapa está sendo emitido) -->
-    <div id="waitingState" class="text-center p-8 max-w-md mx-auto">
-      <div class="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-[#9b1c1c] to-[#3b0808] border-2 border-[#c59b27] flex items-center justify-center mb-5 emblem-glow">
-        <span class="font-display text-3xl text-[#e5c158] font-black">D20</span>
+    <!-- Tela de Conexão / Espera -->
+    <div id="waitingState" class="text-center p-8 max-w-md space-y-4">
+      <div class="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#9b1c1c] to-[#3b0808] border-2 border-[#c59b27]/60 flex items-center justify-center shadow-2xl">
+        <span class="font-display text-3xl text-[#e5c158]">D20</span>
       </div>
-      <h1 class="font-display text-xl sm:text-2xl text-[#e5c158] tracking-wider">Receptor de Mapas</h1>
-      <p class="text-sm text-[#d6c29f]/80 mt-2 leading-relaxed">
-        Conectado à mesa. Assim que o Mestre emitir um mapa na Central de Cartografia, ele aparecerá automaticamente nesta tela.
-      </p>
-      <div class="mt-5 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-[#c59b27]/30 text-[11px] font-heading uppercase tracking-widest text-[#e5c158]">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-        <span>Sincronização ao Vivo</span>
+      <h1 class="font-display text-xl text-[#e5c158] tracking-wider">Receptor de Cartografia</h1>
+      <p id="waitingDesc" class="text-xs text-[#d6c29f]/80">Informe o código da sala criada pelo Mestre para receber o mapa em tempo real.</p>
+
+      <div class="flex items-center justify-center gap-2 pt-2">
+        <input id="roomInput" type="text" maxlength="12" placeholder="EX: MESA-01"
+          class="h-11 w-44 rounded-xl bg-black/70 border border-[#c59b27] px-3 text-center font-mono-num font-bold uppercase tracking-widest text-[#e5c158] outline-none" />
+        <button onclick="connectFromInput()"
+          class="h-11 px-5 rounded-xl bg-[#8b1e1e] hover:bg-[#a62424] border border-[#e5c158] text-xs font-bold uppercase tracking-wider cursor-pointer">
+          Conectar
+        </button>
       </div>
     </div>
-
-  </main>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
@@ -120,222 +88,138 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const PINS_STYLE = {
-      party: { icon: '🚩', color: '#16a34a' },
-      objective: { icon: '⭐', color: '#eab308' },
-      danger: { icon: '💀', color: '#dc2626' },
-      treasure: { icon: '💎', color: '#2563eb' },
-      npc: { icon: '💬', color: '#9333ea' }
-    };
+    let currentUnsub = null;
+    let currentRoom = '';
+    let zoom = 1, panX = 0, panY = 0, dragging = false, startX = 0, startY = 0;
 
-    class MapReceiverApp {
-      constructor() {
-        this.zoom = 1;
-        this.panX = 0;
-        this.panY = 0;
-        this.isDragging = false;
-        this.dragStartX = 0;
-        this.dragStartY = 0;
-        this.lastMapId = null;
-        this.lastImageUrl = '';
-
-        this.bindViewportGestures();
-        this.listenFirebaseBroadcast();
-        this.listenDirectPostMessage();
-      }
-
-      bindViewportGestures() {
-        const viewport = document.getElementById('mapViewport');
-
-        viewport.addEventListener('mousedown', (e) => {
-          this.isDragging = true;
-          this.dragStartX = e.clientX - this.panX;
-          this.dragStartY = e.clientY - this.panY;
-        });
-
-        window.addEventListener('mousemove', (e) => {
-          if (!this.isDragging) return;
-          this.panX = e.clientX - this.dragStartX;
-          this.panY = e.clientY - this.dragStartY;
-          this.applyTransform();
-        });
-
-        window.addEventListener('mouseup', () => {
-          this.isDragging = false;
-        });
-
-        viewport.addEventListener('wheel', (e) => {
-          e.preventDefault();
-          const delta = e.deltaY < 0 ? 0.12 : -0.12;
-          this.adjustZoom(delta);
-        }, { passive: false });
-
-        // Suporte a toque (arrastar em tablets/celulares)
-        viewport.addEventListener('touchstart', (e) => {
-          if (e.touches.length === 1) {
-            this.isDragging = true;
-            this.dragStartX = e.touches[0].clientX - this.panX;
-            this.dragStartY = e.touches[0].clientY - this.panY;
-          }
-        }, { passive: true });
-
-        viewport.addEventListener('touchmove', (e) => {
-          if (!this.isDragging || e.touches.length !== 1) return;
-          this.panX = e.touches[0].clientX - this.dragStartX;
-          this.panY = e.touches[0].clientY - this.dragStartY;
-          this.applyTransform();
-        }, { passive: true });
-
-        viewport.addEventListener('touchend', () => {
-          this.isDragging = false;
-        });
-      }
-
-      adjustZoom(delta) {
-        this.zoom = Math.max(0.5, Math.min(4.5, +(this.zoom + delta).toFixed(2)));
-        this.applyTransform();
-      }
-
-      resetTransform() {
-        this.zoom = 1;
-        this.panX = 0;
-        this.panY = 0;
-        this.applyTransform();
-      }
-
-      applyTransform() {
-        const stage = document.getElementById('mapStage');
-        const zoomBtn = document.getElementById('zoomResetBtn');
-        if (stage) {
-          stage.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
-        }
-        if (zoomBtn) {
-          zoomBtn.textContent = `${Math.round(this.zoom * 100)}%`;
-        }
-      }
-
-      toggleFullscreen() {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        } else {
-          document.exitFullscreen().catch(() => {});
-        }
-      }
-
-      listenFirebaseBroadcast() {
-        const broadcastRef = ref(db, 'mapBroadcast');
-        onValue(broadcastRef, (snapshot) => {
-          const dot = document.getElementById('connectionDot');
-          if (dot) {
-            dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0';
-          }
-          const payload = snapshot.val();
-          this.renderBroadcast(payload);
-        }, (err) => {
-          console.error("Erro na recepção do mapa:", err);
-          const dot = document.getElementById('connectionDot');
-          if (dot) {
-            dot.className = 'w-2.5 h-2.5 rounded-full bg-red-500 shrink-0';
-          }
-        });
-      }
-
-      listenDirectPostMessage() {
-        window.addEventListener('message', (event) => {
-          if (event.data && event.data.type === 'TOMO_MAP_BROADCAST') {
-            this.renderBroadcast(event.data.payload);
-          }
-        });
-      }
-
-      renderBroadcast(data) {
-        const stage = document.getElementById('mapStage');
-        const waiting = document.getElementById('waitingState');
-        const imgEl = document.getElementById('mapImage');
-        const gridEl = document.getElementById('gridOverlay');
-        const fogEl = document.getElementById('fogOverlay');
-        const markersEl = document.getElementById('markersLayer');
-        const titleEl = document.getElementById('mapTitleLabel');
-        const chapterEl = document.getElementById('chapterSubLabel');
-
-        if (!data || !data.active || !data.imageUrl) {
-          stage.classList.add('hidden');
-          waiting.classList.remove('hidden');
-          titleEl.textContent = 'Aguardando Transmissão do Mestre...';
-          chapterEl.classList.add('hidden');
-          markersEl.innerHTML = '';
-          this.lastMapId = null;
-          this.lastImageUrl = '';
-          return;
-        }
-
-        if (this.lastMapId !== data.mapId || this.lastImageUrl !== data.imageUrl) {
-          this.lastMapId = data.mapId;
-          this.lastImageUrl = data.imageUrl;
-          imgEl.src = data.imageUrl;
-          this.resetTransform();
-        }
-
-        stage.classList.remove('hidden');
-        waiting.classList.add('hidden');
-
-        titleEl.textContent = data.mapName || 'Mapa da Campanha';
-        if (data.chapterTitle) {
-          chapterEl.textContent = data.chapterTitle;
-          chapterEl.classList.remove('hidden');
-        } else {
-          chapterEl.classList.add('hidden');
-        }
-
-        gridEl.classList.toggle('hidden', !data.showGrid);
-        fogEl.classList.toggle('hidden', !data.fogEnabled);
-
-        if (data.showTokens === false) {
-          markersEl.innerHTML = '';
-          return;
-        }
-
-        let html = '';
-
-        // Tokens dos jogadores posicionados
-        const tokens = data.tokens ? Object.values(data.tokens) : [];
-        tokens.forEach(tk => {
-          const shortName = (tk.name || 'Herói').split(' ')[0];
-          html += `
-            <div style="left: ${tk.x}%; top: ${tk.y}%; transform: translate(-50%, -50%);"
-              class="absolute z-20 flex flex-col items-center pointer-events-none transition-all duration-150">
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-[#e5c158] bg-[#1a110b] shadow-[0_0_14px_rgba(0,0,0,0.95)] overflow-hidden flex items-center justify-center">
-                <img src="${tk.avatarUrl}" alt="${shortName}" class="w-full h-full object-contain" />
-              </div>
-              <span class="mt-0.5 px-2 py-0.5 rounded bg-black/85 border border-[#c59b27]/60 text-[10px] sm:text-xs font-heading font-bold text-[#f4ead5] whitespace-nowrap shadow">
-                ${shortName}
-              </span>
-            </div>
-          `;
-        });
-
-        // Pinos táticos
-        const pins = data.pins ? Object.values(data.pins) : [];
-        pins.forEach(pin => {
-          const st = PINS_STYLE[pin.type] || PINS_STYLE.party;
-          html += `
-            <div style="left: ${pin.x}%; top: ${pin.y}%; transform: translate(-50%, -50%);"
-              class="absolute z-10 flex flex-col items-center pointer-events-none transition-all duration-150">
-              <div style="background-color: ${st.color};" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-sm sm:text-base">
-                <span>${st.icon}</span>
-              </div>
-              <span class="mt-0.5 px-2 py-0.5 rounded bg-black/85 text-[9px] sm:text-[11px] font-heading font-bold text-white whitespace-nowrap shadow">
-                ${pin.label || ''}
-              </span>
-            </div>
-          `;
-        });
-
-        markersEl.innerHTML = html;
-      }
+    function sanitize(raw) {
+      return (raw || '').toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 12);
     }
 
-    window.receiver = new MapReceiverApp();
+    function connectToRoom(code) {
+      const clean = sanitize(code) || 'MESA-01';
+      currentRoom = clean;
+      localStorage.setItem('tomo_receptor_room', clean);
+      document.getElementById('roomStatusPill').textContent = `SALA: ${clean}`;
+      document.getElementById('roomInput').value = clean;
+      document.getElementById('waitingDesc').textContent = `Conectado à sala ${clean}. Aguardando o Mestre emitir o mapa...`;
+
+      if (currentUnsub) currentUnsub();
+      currentUnsub = onValue(ref(db, `rooms/${clean}`), (snap) => {
+        renderRoom(snap.val());
+      });
+    }
+
+    function renderRoom(data) {
+      const stage = document.getElementById('stageContainer');
+      const waiting = document.getElementById('waitingState');
+      const img = document.getElementById('mapImage');
+      const grid = document.getElementById('gridLayer');
+      const fog = document.getElementById('fogLayer');
+      const markers = document.getElementById('markersLayer');
+      const title = document.getElementById('mapTitleLabel');
+
+      if (!data || !data.imageUrl) {
+        stage.classList.add('hidden');
+        waiting.classList.remove('hidden');
+        title.textContent = 'Aguardando emissão...';
+        markers.innerHTML = '';
+        return;
+      }
+
+      if (img.src !== data.imageUrl) {
+        img.src = data.imageUrl;
+        resetTransform();
+      }
+
+      grid.classList.toggle('hidden', !data.showGrid);
+      fog.classList.toggle('hidden', !data.fogEnabled);
+      title.textContent = data.mapName || 'Mapa Ativo';
+
+      const tokens = Array.isArray(data.tokens) ? data.tokens : Object.values(data.tokens || {});
+      const pins = Array.isArray(data.pins) ? data.pins : Object.values(data.pins || {});
+
+      let html = '';
+      if (data.showTokensOnProjector !== false) {
+        tokens.forEach(tk => {
+          if (!tk) return;
+          html += `
+            <div style="left:${tk.x}%; top:${tk.y}%; transform:translate(-50%,-50%);" class="absolute z-20 flex flex-col items-center transition-all duration-150">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-[#e5c158] bg-[#1a110b] shadow-xl overflow-hidden flex items-center justify-center">
+                <img src="${tk.avatarUrl}" alt="${tk.name}" class="w-full h-full object-contain" />
+              </div>
+              <span class="mt-0.5 px-2 rounded bg-black/85 border border-[#c59b27]/70 text-[10px] sm:text-xs font-bold text-[#f4ead5] whitespace-nowrap">${tk.name}</span>
+            </div>
+          `;
+        });
+      }
+
+      pins.forEach(pin => {
+        if (!pin) return;
+        html += `
+          <div style="left:${pin.x}%; top:${pin.y}%; transform:translate(-50%,-50%);" class="absolute z-10 flex flex-col items-center transition-all duration-150">
+            <div style="background-color:${pin.color || '#16a34a'};" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-sm sm:text-base">${pin.icon || '🚩'}</div>
+            <span class="mt-0.5 px-2 rounded bg-black/85 text-[10px] font-bold text-white whitespace-nowrap">${pin.label}</span>
+          </div>
+        `;
+      });
+
+      markers.innerHTML = html;
+      waiting.classList.add('hidden');
+      stage.classList.remove('hidden');
+    }
+
+    window.connectFromInput = () => {
+      const val = document.getElementById('roomInput').value;
+      if (val.trim()) connectToRoom(val);
+    };
+
+    window.changeRoomPrompt = () => {
+      const next = prompt('Digite o código da Sala de Emissão:', currentRoom);
+      if (next && next.trim()) connectToRoom(next);
+    };
+
+    window.adjustZoom = (delta) => {
+      zoom = Math.max(0.5, Math.min(4, +(zoom + delta).toFixed(2)));
+      applyTransform();
+    };
+
+    window.resetTransform = () => {
+      zoom = 1; panX = 0; panY = 0;
+      applyTransform();
+    };
+
+    function applyTransform() {
+      document.getElementById('stageContainer').style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    }
+
+    window.toggleFullscreen = () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+      else document.exitFullscreen().catch(() => {});
+    };
+
+    const viewport = document.getElementById('viewport');
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+      dragging = true;
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      applyTransform();
+    });
+    window.addEventListener('mouseup', () => { dragging = false; });
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      adjustZoom(e.deltaY < 0 ? 0.1 : -0.1);
+    }, { passive: false });
+
+    const params = new URLSearchParams(window.location.search);
+    const initialRoom = sanitize(params.get('room')) || sanitize(localStorage.getItem('tomo_receptor_room')) || 'MESA-01';
+    connectToRoom(initialRoom);
   </script>
 </body>
 </html>
