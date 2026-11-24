@@ -99,7 +99,7 @@
   </div>
 
   <!-- ========================================================= -->
-  <!-- FIREBASE REALTIME DATABASE (ESCUTA EM DUAS CAMADAS)        -->
+  <!-- FIREBASE REALTIME DATABASE (ESCUTA AO VIVO COM DOM PATCH) -->
   <!-- ========================================================= -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
@@ -184,7 +184,7 @@
         if (this.unsubImage) this.unsubImage();
         if (this.unsubState) this.unsubState();
 
-        // 1. Escuta apenas a imagem do mapa (baixa 1x por troca de mapa)
+        // 1. Escuta a imagem do mapa (baixa 1x por troca de mapa)
         const imgRef = ref(db, `rooms/${code}/mapImage`);
         this.unsubImage = onValue(imgRef, (snap) => {
           const data = snap.val();
@@ -211,62 +211,110 @@
           }
         });
 
-        // 2. Escuta apenas o estado tático leve (tokens, pinos, grade e névoa — instantâneo)
+        // 2. Escuta o estado tático leve e atualiza cada marcador diretamente no DOM (60fps)
         const stateRef = ref(db, `rooms/${code}/state`);
         this.unsubState = onValue(stateRef, (snap) => {
           const st = snap.val();
           if (!st) return;
 
+          if (st.mapName) {
+            document.getElementById('mapTitleLabel').textContent = st.mapName;
+          }
+
           document.getElementById('gridLayer').classList.toggle('hidden', !st.showGrid);
           document.getElementById('fogLayer').classList.toggle('hidden', !st.fogEnabled);
 
           const tokensLayer = document.getElementById('tokensLayer');
-          if (st.showTokens === false) {
+          if (st.showTokens === false || st.showTokensOnProjector === false) {
             tokensLayer.innerHTML = '';
             return;
           }
 
-          tokensLayer.innerHTML = this.buildTokensAndPinsHtml(st.tokens || {}, st.pins || {});
+          this.patchLiveMarkers(tokensLayer, st.tokens || {}, st.pins || {});
         });
       }
 
-      buildTokensAndPinsHtml(tokensObj, pinsObj) {
-        let html = '';
+      patchLiveMarkers(layerEl, tokensObj, pinsObj) {
+        const activeIds = new Set();
 
-        Object.values(tokensObj).forEach(tk => {
+        // Atualiza ou cria tokens de personagens
+        Object.entries(tokensObj).forEach(([key, tk]) => {
           if (!tk || tk.x === undefined || tk.y === undefined) return;
-          const name = tk.name || 'Herói';
+          const id = tk.charId || key;
+          const domId = `rx-token-${id}`;
+          activeIds.add(domId);
+
+          const name = (tk.name || 'Herói').split(' ')[0];
           const avatar = tk.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`;
-          html += `
-            <div style="left: ${tk.x}%; top: ${tk.y}%; transform: translate(-50%, -50%); transition: left 0.12s ease-out, top 0.12s ease-out;"
-              class="absolute z-20 flex flex-col items-center pointer-events-none">
+
+          let el = document.getElementById(domId);
+          if (!el) {
+            el = document.createElement('div');
+            el.id = domId;
+            el.style.cssText = 'transform: translate(-50%, -50%); transition: left 0.05s linear, top 0.05s linear; will-change: left, top;';
+            el.className = 'absolute z-20 flex flex-col items-center pointer-events-none';
+            el.innerHTML = `
               <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-[#e5c158] bg-[#1a110b] shadow-[0_0_14px_rgba(0,0,0,0.95)] overflow-hidden flex items-center justify-center">
                 <img src="${avatar}" alt="${name}" class="w-full h-full object-contain" />
               </div>
               <span class="mt-0.5 px-2 py-0.5 rounded bg-black/85 border border-[#c59b27]/70 text-[10px] sm:text-xs font-heading font-bold text-[#f4ead5] whitespace-nowrap shadow">
-                ${name.split(' ')[0]}
+                ${name}
               </span>
-            </div>
-          `;
+            `;
+            layerEl.appendChild(el);
+          } else {
+            const img = el.querySelector('img');
+            const span = el.querySelector('span');
+            if (img && img.src !== avatar) img.src = avatar;
+            if (span && span.textContent.trim() !== name) span.textContent = name;
+          }
+
+          el.style.left = `${tk.x}%`;
+          el.style.top = `${tk.y}%`;
         });
 
-        Object.values(pinsObj).forEach(pin => {
+        // Atualiza ou cria pinos táticos
+        Object.entries(pinsObj).forEach(([key, pin]) => {
           if (!pin || pin.x === undefined || pin.y === undefined) return;
+          const id = pin.id || key;
+          const domId = `rx-pin-${id}`;
+          activeIds.add(domId);
+
           const meta = TACTICAL_PINS_META[pin.type] || TACTICAL_PINS_META.party;
-          html += `
-            <div style="left: ${pin.x}%; top: ${pin.y}%; transform: translate(-50%, -50%); transition: left 0.12s ease-out, top 0.12s ease-out;"
-              class="absolute z-10 flex flex-col items-center pointer-events-none">
-              <div style="background-color: ${meta.color};" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-sm sm:text-base">
-                <span>${meta.icon}</span>
+          const icon = pin.icon || meta.icon;
+          const color = pin.color || meta.color;
+          const label = pin.label || '';
+
+          let el = document.getElementById(domId);
+          if (!el) {
+            el = document.createElement('div');
+            el.id = domId;
+            el.style.cssText = 'transform: translate(-50%, -50%); transition: left 0.05s linear, top 0.05s linear; will-change: left, top;';
+            el.className = 'absolute z-10 flex flex-col items-center pointer-events-none';
+            el.innerHTML = `
+              <div style="background-color: ${color};" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-sm sm:text-base">
+                <span>${icon}</span>
               </div>
               <span class="mt-0.5 px-2 py-0.5 rounded bg-black/85 text-[10px] font-heading font-bold text-white whitespace-nowrap shadow">
-                ${pin.label || ''}
+                ${label}
               </span>
-            </div>
-          `;
+            `;
+            layerEl.appendChild(el);
+          } else {
+            const labelSpan = el.querySelectorAll('span')[1];
+            if (labelSpan && labelSpan.textContent.trim() !== label) labelSpan.textContent = label;
+          }
+
+          el.style.left = `${pin.x}%`;
+          el.style.top = `${pin.y}%`;
         });
 
-        return html;
+        // Remove marcadores que foram retirados do mapa
+        Array.from(layerEl.children).forEach(child => {
+          if (!activeIds.has(child.id)) {
+            child.remove();
+          }
+        });
       }
 
       initPanAndZoom() {
