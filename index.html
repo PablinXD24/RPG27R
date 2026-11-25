@@ -1,373 +1,498 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
-  <title>Projetor Tático • Receptor de Mapa D&D 5e</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpolygon points='32,4 58,18 58,46 32,60 6,46 6,18' fill='%238b1e1e' stroke='%23e5c158' stroke-width='4'/%3E%3Ctext x='32' y='38' font-family='Georgia,serif' font-size='18' font-weight='bold' fill='%23f4ead5' text-anchor='middle'%3ED20%3C/text%3E%3C/svg%3E" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 0;
-      background-color: #050403;
-      color: #f4ead5;
-      font-family: 'Cinzel', Georgia, serif;
-      overflow: hidden;
-      user-select: none;
-    }
-    .font-display { font-family: 'Cinzel Decorative', Georgia, serif; }
-    .font-heading { font-family: 'Cinzel', Georgia, serif; }
-    .font-mono-num { font-family: 'JetBrains Mono', monospace; }
-    .tactical-grid-overlay {
-      background-size: 48px 48px;
-      background-image:
-        linear-gradient(to right, rgba(229, 193, 88, 0.28) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(229, 193, 88, 0.28) 1px, transparent 1px);
-    }
-  </style>
+<meta charset="UTF-8">
+<title>MapForge VTT - Receptor & Tela de Projeção</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #07090e;
+    font-family: 'Inter', sans-serif; color: #f1f5f9;
+    user-select: none;
+  }
+  .font-rpg { font-family: 'Cinzel', serif; }
+
+  #viewport {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at center, #0f172a 0%, #05070a 100%);
+    overflow: hidden;
+  }
+
+  #mapStage {
+    position: relative;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  #mapImage {
+    display: block;
+    max-width: none;
+    pointer-events: none;
+  }
+
+  #gridOverlay, #fogCanvas, #tokensLayer {
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+
+  .vtt-token {
+    position: absolute;
+    border-radius: 9999px;
+    transform: translate(-50%, -50%);
+    transition: left 0.25s cubic-bezier(0.22, 1, 0.36, 1), top 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .vtt-token img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 9999px;
+  }
+  .vtt-token-label {
+    position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%);
+    background: rgba(9, 13, 22, 0.88);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 1px 7px; border-radius: 999px;
+    font-size: 10px; font-weight: 600; white-space: nowrap;
+    color: #f8fafc; text-shadow: 0 1px 2px #000;
+  }
+
+  /* Camada de Cena Animada (Vídeo + Respiração 2D) */
+  #animatedCastLayer {
+    position: fixed; inset: 0; z-index: 40;
+    display: none; align-items: center; justify-content: center;
+    background: #04060a;
+    opacity: 0; transition: opacity 0.45s ease;
+  }
+  #animatedCastLayer.active {
+    display: flex; opacity: 1;
+  }
+  #castBgVideo {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover;
+    z-index: 1;
+  }
+  #castBgFallback {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover;
+    z-index: 1; display: none;
+  }
+  #castAnimCanvas {
+    position: relative; z-index: 2;
+    max-width: 92vw; max-height: 92vh;
+    filter: drop-shadow(0 20px 45px rgba(0,0,0,0.85));
+  }
+  #castCaption {
+    position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+    z-index: 3; background: rgba(8, 12, 20, 0.78);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    padding: 8px 22px; border-radius: 999px;
+    font-family: 'Cinzel', serif; font-size: 16px; letter-spacing: 0.06em;
+    color: #fef3c7; text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+  }
+</style>
 </head>
-<body class="w-screen h-screen bg-[#050403] overflow-hidden">
+<body>
 
-  <!-- ========================================================= -->
-  <!-- TELA DE CONEXÃO À SALA (EXIBIDA SE NÃO HOUVER ?room=...)  -->
-  <!-- ========================================================= -->
-  <div id="joinRoomScreen" class="fixed inset-0 z-50 bg-[#090604] flex items-center justify-center p-4">
-    <div class="w-full max-w-md rounded-2xl p-6 sm:p-8 bg-gradient-to-br from-[#241710] to-[#160e0a] border-2 border-[#c59b27]/60 shadow-2xl text-center space-y-5">
-      <div class="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-[#9b1c1c] to-[#580c0c] border-2 border-[#e5c158] flex items-center justify-center shadow-lg">
-        <span class="font-display text-2xl text-[#f4ead5] font-black">D20</span>
+  <!-- Tela de Conexão Inicial (caso não venha ?room= na URL) -->
+  <div id="connectOverlay" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-7 shadow-2xl text-center">
+      <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+        <i data-lucide="tv" class="w-7 h-7"></i>
       </div>
-      <div>
-        <h1 class="font-display text-2xl font-black text-[#e5c158]">Receptor de Mapa</h1>
-        <p class="text-xs text-[#d6c29f]/80 mt-1">Digite o código da sala exibido na Central de Cartografia do Mestre</p>
-      </div>
-
-      <form onsubmit="receiver.handleJoinSubmit(event)" class="space-y-3">
-        <input id="roomCodeInput" type="text" required placeholder="Ex: MESA-01" maxlength="20"
-          class="w-full h-12 rounded-xl bg-black/55 border border-[#c59b27]/60 px-4 text-center font-mono-num text-lg font-bold uppercase tracking-widest text-[#e5c158] outline-none focus:border-[#e5c158]" />
-        <button type="submit"
-          class="w-full h-12 rounded-xl bg-gradient-to-r from-[#8b1e1e] to-[#691414] hover:from-[#a62424] hover:to-[#7a1818] border border-[#e5c158] text-[#f4ead5] font-heading font-bold text-sm uppercase tracking-wider shadow-lg transition cursor-pointer">
-          📡 Conectar à Sala
+      <h1 class="font-rpg text-2xl font-bold text-amber-400 tracking-wide mb-1">MapForge Receptor</h1>
+      <p class="text-xs text-slate-400 mb-6">Conecte esta tela à mesa do Mestre para receber o mapa, tokens e cenas animadas em tempo real.</p>
+      
+      <div class="space-y-3 text-left">
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Código da Sala</label>
+          <input id="roomCodeInput" type="text" placeholder="Ex: MESA-01" class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm text-white uppercase tracking-widest focus:outline-none focus:border-amber-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Firebase Database URL</label>
+          <input id="firebaseUrlInput" type="text" placeholder="https://seu-projeto-default-rtdb.firebaseio.com" class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-amber-500">
+        </div>
+        <button id="btnConnect" class="w-full mt-2 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
+          <i data-lucide="radio" class="w-4 h-4"></i> Conectar à Mesa
         </button>
-      </form>
-    </div>
-  </div>
-
-  <!-- ========================================================= -->
-  <!-- PALCO DE EXIBIÇÃO DO MAPA EM TEMPO REAL                   -->
-  <!-- ========================================================= -->
-  <div id="receiverScreen" class="hidden fixed inset-0 bg-[#050403] flex items-center justify-center overflow-hidden">
-
-    <!-- Barra Discreta de Controles (Canto Superior Direito) -->
-    <div class="absolute top-3 right-3 z-30 flex items-center gap-2 bg-black/75 backdrop-blur-md border border-[#c59b27]/40 rounded-full px-3 py-1.5 opacity-20 hover:opacity-100 transition-opacity duration-300">
-      <span id="roomBadge" class="text-[11px] font-mono-num font-bold text-emerald-400 px-2 border-r border-[#c59b27]/30">SALA</span>
-      <span id="mapTitleLabel" class="text-xs font-heading text-[#e5c158] px-1 max-w-[180px] truncate">Aguardando...</span>
-      <button onclick="receiver.adjustZoom(-0.15)" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-[#f4ead5] font-mono-num text-sm flex items-center justify-center cursor-pointer" title="Diminuir Zoom">-</button>
-      <button onclick="receiver.resetTransform()" class="px-2 h-7 rounded-full bg-white/10 hover:bg-white/20 text-[#f4ead5] font-mono-num text-[11px] cursor-pointer" title="Centralizar">100%</button>
-      <button onclick="receiver.adjustZoom(0.15)" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-[#f4ead5] font-mono-num text-sm flex items-center justify-center cursor-pointer" title="Aumentar Zoom">+</button>
-      <button onclick="receiver.toggleFullscreen()" class="w-7 h-7 rounded-full bg-[#8b1e1e] hover:bg-[#a62424] text-[#f4ead5] text-xs flex items-center justify-center cursor-pointer" title="Tela Cheia">⛶</button>
-      <button onclick="receiver.switchRoom()" class="px-2 h-7 rounded-full bg-white/10 hover:bg-white/20 text-[#d6c29f] text-[10px] font-heading uppercase cursor-pointer" title="Trocar Sala">Trocar</button>
-    </div>
-
-    <!-- Viewport com Arrasto e Zoom -->
-    <div id="mapViewport" class="w-full h-full flex items-center justify-center relative overflow-hidden cursor-grab active:cursor-grabbing">
-      <div id="mapStageContainer" class="hidden relative inline-flex items-center justify-center transition-transform duration-100 ease-out">
-        <img id="mapImageEl" src="" alt="Mapa da Sessão" class="max-w-screen max-h-screen w-auto h-auto object-contain block pointer-events-none select-none" />
-        <div id="gridLayer" class="hidden absolute inset-0 tactical-grid-overlay pointer-events-none"></div>
-        <div id="fogLayer" class="hidden absolute inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center pointer-events-none transition-all duration-300">
-          <div class="text-center px-6 py-4 rounded-2xl bg-black/75 border border-[#c59b27]/40">
-            <span class="text-3xl block mb-1">🌫️</span>
-            <span class="font-display text-sm sm:text-base text-[#e5c158] tracking-widest uppercase">Território Oculto pelo Mestre</span>
-          </div>
-        </div>
-        <div id="tokensLayer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
-      </div>
-
-      <!-- Estado de Espera -->
-      <div id="waitingState" class="text-center p-8 max-w-md">
-        <div class="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#9b1c1c] to-[#3b0808] border-2 border-[#c59b27]/60 flex items-center justify-center mb-4 shadow-2xl animate-pulse">
-          <span class="font-display text-3xl text-[#e5c158]">D20</span>
-        </div>
-        <h2 class="font-display text-xl text-[#e5c158] tracking-wider">Conectado à Sala <span id="waitingRoomCode" class="font-mono-num text-emerald-400"></span></h2>
-        <p class="text-xs text-[#d6c29f]/75 mt-2">Aguardando o Mestre emitir um mapa na Central de Cartografia...</p>
       </div>
     </div>
   </div>
 
-  <!-- ========================================================= -->
-  <!-- FIREBASE REALTIME DATABASE (ESCUTA AO VIVO COM DOM PATCH) -->
-  <!-- ========================================================= -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
+  <!-- Barra de Status Discreta -->
+  <div id="statusPill" class="fixed top-3 right-3 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-950/75 border border-white/10 backdrop-blur-md text-[11px] text-slate-300 opacity-70 hover:opacity-100 transition">
+    <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+    <span id="statusText">Aguardando sala...</span>
+  </div>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAL1LSLHbr_P0VRDEETpBeI9U6d8_dAQo0",
-      authDomain: "rpg27-a394d.firebaseapp.com",
-      databaseURL: "https://rpg27-a394d-default-rtdb.firebaseio.com",
-      projectId: "rpg27-a394d",
-      storageBucket: "rpg27-a394d.firebasestorage.app",
-      messagingSenderId: "219813562576",
-      appId: "1:219813562576:web:a49a239f2852bee67036d5"
-    };
+  <!-- Viewport Principal do Mapa -->
+  <div id="viewport">
+    <div id="emptyState" class="text-center text-slate-500">
+      <i data-lucide="compass" class="w-12 h-12 mx-auto mb-3 opacity-30"></i>
+      <p class="font-rpg text-sm tracking-widest uppercase">Aguardando transmissão do Mestre</p>
+    </div>
 
-    const app = initializeApp(firebaseConfig);
+    <div id="mapStage" style="display:none;">
+      <img id="mapImage" alt="Mapa VTT">
+      <canvas id="gridOverlay"></canvas>
+      <div id="tokensLayer"></div>
+      <canvas id="fogCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Camada Fullscreen de Cena Animada (Vídeo + Personagem 2D) -->
+  <div id="animatedCastLayer">
+    <video id="castBgVideo" autoplay loop muted playsinline></video>
+    <img id="castBgFallback" alt="Cenário">
+    <canvas id="castAnimCanvas"></canvas>
+    <div id="castCaption" style="display:none;"></div>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  lucide.createIcons();
+
+  // Parâmetros da URL
+  const params = new URLSearchParams(window.location.search);
+  const urlRoom = (params.get('room') || '').trim().toUpperCase();
+  const urlDb = (params.get('db') || localStorage.getItem('mf_fb_url') || '').trim();
+
+  const connectOverlay = document.getElementById('connectOverlay');
+  const roomCodeInput = document.getElementById('roomCodeInput');
+  const firebaseUrlInput = document.getElementById('firebaseUrlInput');
+  const btnConnect = document.getElementById('btnConnect');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+
+  const viewport = document.getElementById('viewport');
+  const emptyState = document.getElementById('emptyState');
+  const mapStage = document.getElementById('mapStage');
+  const mapImage = document.getElementById('mapImage');
+  const gridOverlay = document.getElementById('gridOverlay');
+  const tokensLayer = document.getElementById('tokensLayer');
+  const fogCanvas = document.getElementById('fogCanvas');
+
+  // Elementos da Cena Animada
+  const animatedCastLayer = document.getElementById('animatedCastLayer');
+  const castBgVideo = document.getElementById('castBgVideo');
+  const castBgFallback = document.getElementById('castBgFallback');
+  const castAnimCanvas = document.getElementById('castAnimCanvas');
+  const castCaption = document.getElementById('castCaption');
+  const castCtx = castAnimCanvas.getContext('2d');
+
+  let currentState = null;
+  let animRafId = null;
+  let animCharImg = null;
+  let animConfig = null;
+
+  if (urlDb) firebaseUrlInput.value = urlDb;
+  if (urlRoom) roomCodeInput.value = urlRoom;
+
+  // Auto-conectar se ambos vierem na URL ou localStorage
+  if (urlRoom && urlDb) {
+    connectOverlay.style.display = 'none';
+    startReceiver(urlRoom, urlDb);
+  }
+
+  btnConnect.addEventListener('click', () => {
+    const room = roomCodeInput.value.trim().toUpperCase();
+    const dbUrl = firebaseUrlInput.value.trim();
+    if (!room || !dbUrl) {
+      alert('Preencha o Código da Sala e a URL do Firebase.');
+      return;
+    }
+    localStorage.setItem('mf_fb_url', dbUrl);
+    connectOverlay.style.display = 'none';
+    startReceiver(room, dbUrl);
+  });
+
+  function startReceiver(roomCode, databaseURL) {
+    statusText.textContent = `Conectando: ${roomCode}...`;
+    const app = initializeApp({ databaseURL });
     const db = getDatabase(app);
 
-    const TACTICAL_PINS_META = {
-      party: { icon: '🚩', color: '#16a34a' },
-      objective: { icon: '⭐', color: '#eab308' },
-      danger: { icon: '💀', color: '#dc2626' },
-      treasure: { icon: '💎', color: '#2563eb' },
-      npc: { icon: '💬', color: '#9333ea' }
-    };
+    // 1. Escutar Imagem do Mapa
+    onValue(ref(db, `rooms/${roomCode}/mapImage`), (snap) => {
+      const src = snap.val();
+      if (!src) return;
+      mapImage.onload = () => {
+        emptyState.style.display = 'none';
+        mapStage.style.display = 'block';
+        setupCanvases();
+        fitMapToScreen();
+        if (currentState) renderState(currentState);
+      };
+      mapImage.src = src;
+      statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+      statusText.textContent = `Sala ${roomCode} • Ao vivo`;
+    });
 
-    class MapReceiver {
-      constructor() {
-        this.roomCode = null;
-        this.unsubImage = null;
-        this.unsubState = null;
-        this.currentMapId = null;
-
-        this.zoom = 1;
-        this.panX = 0;
-        this.panY = 0;
-        this.isDragging = false;
-        this.startX = 0;
-        this.startY = 0;
-
-        this.initPanAndZoom();
-
-        const params = new URLSearchParams(window.location.search);
-        const urlRoom = (params.get('room') || '').trim().toUpperCase();
-        const savedRoom = (localStorage.getItem('tomo_receiver_room') || '').trim().toUpperCase();
-
-        if (urlRoom) {
-          this.connectToRoom(urlRoom);
-        } else if (savedRoom) {
-          document.getElementById('roomCodeInput').value = savedRoom;
-        }
+    // 2. Escutar Estado do Tabuleiro (Tokens, Grid, Névoa, Câmera)
+    onValue(ref(db, `rooms/${roomCode}/state`), (snap) => {
+      const state = snap.val();
+      if (!state) return;
+      currentState = state;
+      if (mapImage.complete && mapImage.naturalWidth > 0) {
+        renderState(state);
       }
+    });
 
-      handleJoinSubmit(e) {
-        e.preventDefault();
-        const code = document.getElementById('roomCodeInput').value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
-        if (!code) return;
-        this.connectToRoom(code);
-      }
+    // 3. Escutar Cenas Animadas (Vídeo de Fundo + Personagem Respirando 2D)
+    onValue(ref(db, `rooms/${roomCode}/animatedCast`), (snap) => {
+      const payload = snap.val();
+      handleAnimatedCast(payload);
+    });
+  }
 
-      switchRoom() {
-        if (this.unsubImage) this.unsubImage();
-        if (this.unsubState) this.unsubState();
-        document.getElementById('receiverScreen').classList.add('hidden');
-        document.getElementById('joinRoomScreen').classList.remove('hidden');
-        document.getElementById('roomCodeInput').value = this.roomCode || '';
-      }
+  function setupCanvases() {
+    const w = mapImage.naturalWidth;
+    const h = mapImage.naturalHeight;
+    mapStage.style.width = w + 'px';
+    mapStage.style.height = h + 'px';
+    gridOverlay.width = w;
+    gridOverlay.height = h;
+    fogCanvas.width = w;
+    fogCanvas.height = h;
+  }
 
-      connectToRoom(code) {
-        this.roomCode = code;
-        localStorage.setItem('tomo_receiver_room', code);
+  function fitMapToScreen() {
+    const w = mapImage.naturalWidth;
+    const h = mapImage.naturalHeight;
+    if (!w || !h) return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const scale = Math.min(vw / w, vh / h);
+    const tx = (vw - w * scale) / 2;
+    const ty = (vh - h * scale) / 2;
+    mapStage.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  }
 
-        const url = new URL(window.location.href);
-        url.searchParams.set('room', code);
-        window.history.replaceState({}, '', url.toString());
+  window.addEventListener('resize', () => {
+    if (!currentState || !currentState.camera) fitMapToScreen();
+  });
 
-        document.getElementById('joinRoomScreen').classList.add('hidden');
-        document.getElementById('receiverScreen').classList.remove('hidden');
-        document.getElementById('roomBadge').textContent = `SALA: ${code}`;
-        document.getElementById('waitingRoomCode').textContent = code;
-
-        if (this.unsubImage) this.unsubImage();
-        if (this.unsubState) this.unsubState();
-
-        // 1. Escuta a imagem do mapa (baixa 1x por troca de mapa)
-        const imgRef = ref(db, `rooms/${code}/mapImage`);
-        this.unsubImage = onValue(imgRef, (snap) => {
-          const data = snap.val();
-          const stage = document.getElementById('mapStageContainer');
-          const waiting = document.getElementById('waitingState');
-          const imgEl = document.getElementById('mapImageEl');
-          const titleEl = document.getElementById('mapTitleLabel');
-
-          if (data && data.imageUrl) {
-            if (this.currentMapId !== data.mapId || imgEl.src !== data.imageUrl) {
-              this.currentMapId = data.mapId;
-              imgEl.src = data.imageUrl;
-              this.resetTransform();
-            }
-            titleEl.textContent = data.name || 'Mapa Ativo';
-            stage.classList.remove('hidden');
-            waiting.classList.add('hidden');
-          } else {
-            this.currentMapId = null;
-            imgEl.src = '';
-            titleEl.textContent = 'Aguardando...';
-            stage.classList.add('hidden');
-            waiting.classList.remove('hidden');
-          }
-        });
-
-        // 2. Escuta o estado tático leve e atualiza cada marcador diretamente no DOM (60fps)
-        const stateRef = ref(db, `rooms/${code}/state`);
-        this.unsubState = onValue(stateRef, (snap) => {
-          const st = snap.val();
-          if (!st) return;
-
-          if (st.mapName) {
-            document.getElementById('mapTitleLabel').textContent = st.mapName;
-          }
-
-          document.getElementById('gridLayer').classList.toggle('hidden', !st.showGrid);
-          document.getElementById('fogLayer').classList.toggle('hidden', !st.fogEnabled);
-
-          const tokensLayer = document.getElementById('tokensLayer');
-          if (st.showTokens === false || st.showTokensOnProjector === false) {
-            tokensLayer.innerHTML = '';
-            return;
-          }
-
-          this.patchLiveMarkers(tokensLayer, st.tokens || {}, st.pins || {});
-        });
-      }
-
-      patchLiveMarkers(layerEl, tokensObj, pinsObj) {
-        const activeIds = new Set();
-
-        // Atualiza ou cria tokens de personagens
-        Object.entries(tokensObj).forEach(([key, tk]) => {
-          if (!tk || tk.x === undefined || tk.y === undefined) return;
-          const id = tk.charId || key;
-          const domId = `rx-token-${id}`;
-          activeIds.add(domId);
-
-          const name = (tk.name || 'Herói').split(' ')[0];
-          const avatar = tk.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`;
-
-          let el = document.getElementById(domId);
-          if (!el) {
-            el = document.createElement('div');
-            el.id = domId;
-            el.style.cssText = 'transform: translate(-50%, -50%); transition: left 0.05s linear, top 0.05s linear; will-change: left, top;';
-            el.className = 'absolute z-20 flex flex-col items-center pointer-events-none';
-            el.innerHTML = `
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-[#e5c158] bg-[#1a110b] shadow-[0_0_14px_rgba(0,0,0,0.95)] overflow-hidden flex items-center justify-center">
-                <img src="${avatar}" alt="${name}" class="w-full h-full object-contain" />
-              </div>
-              <span class="mt-0.5 px-2 py-0.5 rounded bg-black/85 border border-[#c59b27]/70 text-[10px] sm:text-xs font-heading font-bold text-[#f4ead5] whitespace-nowrap shadow">
-                ${name}
-              </span>
-            `;
-            layerEl.appendChild(el);
-          } else {
-            const img = el.querySelector('img');
-            const span = el.querySelector('span');
-            if (img && img.src !== avatar) img.src = avatar;
-            if (span && span.textContent.trim() !== name) span.textContent = name;
-          }
-
-          el.style.left = `${tk.x}%`;
-          el.style.top = `${tk.y}%`;
-        });
-
-        // Atualiza ou cria pinos táticos
-        Object.entries(pinsObj).forEach(([key, pin]) => {
-          if (!pin || pin.x === undefined || pin.y === undefined) return;
-          const id = pin.id || key;
-          const domId = `rx-pin-${id}`;
-          activeIds.add(domId);
-
-          const meta = TACTICAL_PINS_META[pin.type] || TACTICAL_PINS_META.party;
-          const icon = pin.icon || meta.icon;
-          const color = pin.color || meta.color;
-          const label = pin.label || '';
-
-          let el = document.getElementById(domId);
-          if (!el) {
-            el = document.createElement('div');
-            el.id = domId;
-            el.style.cssText = 'transform: translate(-50%, -50%); transition: left 0.05s linear, top 0.05s linear; will-change: left, top;';
-            el.className = 'absolute z-10 flex flex-col items-center pointer-events-none';
-            el.innerHTML = `
-              <div style="background-color: ${color};" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-white shadow-lg flex items-center justify-center text-sm sm:text-base">
-                <span>${icon}</span>
-              </div>
-              <span class="mt-0.5 px-2 py-0.5 rounded bg-black/85 text-[10px] font-heading font-bold text-white whitespace-nowrap shadow">
-                ${label}
-              </span>
-            `;
-            layerEl.appendChild(el);
-          } else {
-            const labelSpan = el.querySelectorAll('span')[1];
-            if (labelSpan && labelSpan.textContent.trim() !== label) labelSpan.textContent = label;
-          }
-
-          el.style.left = `${pin.x}%`;
-          el.style.top = `${pin.y}%`;
-        });
-
-        // Remove marcadores que foram retirados do mapa
-        Array.from(layerEl.children).forEach(child => {
-          if (!activeIds.has(child.id)) {
-            child.remove();
-          }
-        });
-      }
-
-      initPanAndZoom() {
-        const viewport = document.getElementById('mapViewport');
-        viewport.addEventListener('mousedown', (e) => {
-          this.isDragging = true;
-          this.startX = e.clientX - this.panX;
-          this.startY = e.clientY - this.panY;
-        });
-        window.addEventListener('mousemove', (e) => {
-          if (!this.isDragging) return;
-          this.panX = e.clientX - this.startX;
-          this.panY = e.clientY - this.startY;
-          this.applyTransform();
-        });
-        window.addEventListener('mouseup', () => {
-          this.isDragging = false;
-        });
-        viewport.addEventListener('wheel', (e) => {
-          e.preventDefault();
-          this.adjustZoom(e.deltaY < 0 ? 0.12 : -0.12);
-        }, { passive: false });
-      }
-
-      adjustZoom(delta) {
-        this.zoom = Math.max(0.5, Math.min(4, +(this.zoom + delta).toFixed(2)));
-        this.applyTransform();
-      }
-
-      resetTransform() {
-        this.zoom = 1;
-        this.panX = 0;
-        this.panY = 0;
-        this.applyTransform();
-      }
-
-      applyTransform() {
-        const stage = document.getElementById('mapStageContainer');
-        if (stage) {
-          stage.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
-        }
-      }
-
-      toggleFullscreen() {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        } else {
-          document.exitFullscreen().catch(() => {});
-        }
-      }
+  function renderState(state) {
+    // Câmera sincronizada (se o mestre enviar viewport)
+    if (state.camera && typeof state.camera.scale === 'number') {
+      const { x, y, scale } = state.camera;
+      mapStage.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    } else {
+      fitMapToScreen();
     }
 
-    window.receiver = new MapReceiver();
-  </script>
+    // Grid
+    const gCtx = gridOverlay.getContext('2d');
+    gCtx.clearRect(0, 0, gridOverlay.width, gridOverlay.height);
+    if (state.grid && state.grid.visible && state.grid.size > 8) {
+      const size = state.grid.size;
+      gCtx.strokeStyle = state.grid.color || 'rgba(255,255,255,0.18)';
+      gCtx.lineWidth = 1;
+      gCtx.beginPath();
+      for (let x = 0; x <= gridOverlay.width; x += size) {
+        gCtx.moveTo(x, 0); gCtx.lineTo(x, gridOverlay.height);
+      }
+      for (let y = 0; y <= gridOverlay.height; y += size) {
+        gCtx.moveTo(0, y); gCtx.lineTo(gridOverlay.width, y);
+      }
+      gCtx.stroke();
+    }
+
+    // Tokens
+    tokensLayer.innerHTML = '';
+    const tokens = Array.isArray(state.tokens) ? state.tokens : Object.values(state.tokens || {});
+    tokens.forEach(tk => {
+      if (tk.hidden) return;
+      const el = document.createElement('div');
+      el.className = 'vtt-token';
+      const sz = tk.size || 48;
+      el.style.width = sz + 'px';
+      el.style.height = sz + 'px';
+      el.style.left = tk.x + 'px';
+      el.style.top = tk.y + 'px';
+      el.style.border = `3px solid ${tk.borderColor || '#f59e0b'}`;
+      el.style.background = tk.color || '#1e293b';
+
+      if (tk.img) {
+        const img = document.createElement('img');
+        img.src = tk.img;
+        el.appendChild(img);
+      } else {
+        el.textContent = (tk.name || '?').slice(0, 2).toUpperCase();
+        el.style.fontWeight = '700';
+        el.style.fontSize = Math.max(12, sz * 0.34) + 'px';
+      }
+
+      if (tk.name) {
+        const lbl = document.createElement('div');
+        lbl.className = 'vtt-token-label';
+        lbl.textContent = tk.name;
+        el.appendChild(lbl);
+      }
+      tokensLayer.appendChild(el);
+    });
+
+    // Névoa de Guerra
+    const fCtx = fogCanvas.getContext('2d');
+    fCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+    if (state.fog && state.fog.enabled) {
+      fCtx.fillStyle = '#030508';
+      fCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+      if (Array.isArray(state.fog.revealed)) {
+        fCtx.globalCompositeOperation = 'destination-out';
+        state.fog.revealed.forEach(r => {
+          fCtx.beginPath();
+          fCtx.arc(r.x, r.y, r.r || 60, 0, Math.PI * 2);
+          fCtx.fill();
+        });
+        fCtx.globalCompositeOperation = 'source-over';
+      }
+    }
+  }
+
+  // =========================================================================
+  // MOTOR DE CENA ANIMADA (VÍDEO DE FUNDO + RESPIRAÇÃO / SWAY 2D EM MALHA)
+  // =========================================================================
+  function stopAnimatedCast() {
+    if (animRafId) {
+      cancelAnimationFrame(animRafId);
+      animRafId = null;
+    }
+    animatedCastLayer.classList.remove('active');
+    setTimeout(() => {
+      if (!animatedCastLayer.classList.contains('active')) {
+        animatedCastLayer.style.display = 'none';
+        castBgVideo.pause();
+        castBgVideo.removeAttribute('src');
+        castBgVideo.load();
+      }
+    }, 450);
+  }
+
+  function handleAnimatedCast(payload) {
+    if (!payload || !payload.active) {
+      stopAnimatedCast();
+      return;
+    }
+
+    animConfig = {
+      speed: payload.speed ?? 1.8,
+      breathAmp: payload.breathAmp ?? 0.022,
+      swayAmp: payload.swayAmp ?? 8,
+      pivotY: payload.pivotY ?? 0.48,
+      scale: payload.scale ?? 1.0,
+      offsetX: payload.offsetX ?? 0,
+      offsetY: payload.offsetY ?? 0
+    };
+
+    // Legenda / Título da Cena
+    if (payload.title) {
+      castCaption.textContent = payload.title;
+      castCaption.style.display = 'block';
+    } else {
+      castCaption.style.display = 'none';
+    }
+
+    // Fundo (Vídeo MP4/WebM ou Imagem Estática)
+    if (payload.bgVideoUrl) {
+      castBgFallback.style.display = 'none';
+      castBgVideo.style.display = 'block';
+      if (castBgVideo.src !== payload.bgVideoUrl) {
+        castBgVideo.src = payload.bgVideoUrl;
+        castBgVideo.play().catch(() => {});
+      }
+    } else if (payload.bgImageUrl) {
+      castBgVideo.style.display = 'none';
+      castBgFallback.src = payload.bgImageUrl;
+      castBgFallback.style.display = 'block';
+    } else {
+      castBgVideo.style.display = 'none';
+      castBgFallback.style.display = 'none';
+    }
+
+    // Personagem PNG Transparente
+    if (payload.charImageUrl) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        animCharImg = img;
+        startAnimationLoop();
+      };
+      img.src = payload.charImageUrl;
+    } else {
+      animCharImg = null;
+      castCtx.clearRect(0, 0, castAnimCanvas.width, castAnimCanvas.height);
+    }
+
+    animatedCastLayer.style.display = 'flex';
+    requestAnimationFrame(() => animatedCastLayer.classList.add('active'));
+  }
+
+  function startAnimationLoop() {
+    if (animRafId) cancelAnimationFrame(animRafId);
+    const startTime = performance.now();
+
+    function renderFrame(now) {
+      if (!animCharImg || !animConfig) return;
+      const t = (now - startTime) / 1000;
+
+      const iw = animCharImg.naturalWidth;
+      const ih = animCharImg.naturalHeight;
+      const pad = 80;
+      castAnimCanvas.width = iw + pad * 2;
+      castAnimCanvas.height = ih + pad * 2;
+
+      castCtx.clearRect(0, 0, castAnimCanvas.width, castAnimCanvas.height);
+
+      const phase = t * animConfig.speed * Math.PI;
+      const breath = Math.sin(phase);
+      const sway = Math.sin(phase * 0.5);
+
+      const slices = 36;
+      const sliceH = ih / slices;
+      const chestLine = ih * animConfig.pivotY;
+
+      castCtx.save();
+      castCtx.translate(
+        castAnimCanvas.width / 2 + animConfig.offsetX,
+        castAnimCanvas.height / 2 + animConfig.offsetY
+      );
+      castCtx.scale(animConfig.scale, animConfig.scale);
+      castCtx.translate(-iw / 2, -ih / 2);
+
+      for (let i = 0; i < slices; i++) {
+        const sy = i * sliceH;
+        const normY = 1 - (sy / ih); // 1 no topo (cabeça), 0 na base (pés)
+
+        // Influência maior no tronco/peito para respiração e no topo para balanço
+        const distChest = Math.exp(-Math.pow((sy - chestLine) / (ih * 0.25), 2));
+        const scaleX = 1 + breath * animConfig.breathAmp * distChest;
+        const offsetY = -breath * (animConfig.breathAmp * ih * 0.35) * normY;
+        const offsetX = sway * animConfig.swayAmp * Math.pow(normY, 1.4);
+
+        const dw = iw * scaleX;
+        const dx = (iw - dw) / 2 + offsetX;
+        const dy = sy + offsetY;
+
+        castCtx.drawImage(
+          animCharImg,
+          0, sy, iw, sliceH + 0.8,
+          dx, dy, dw, sliceH + 0.8
+        );
+      }
+
+      castCtx.restore();
+      animRafId = requestAnimationFrame(renderFrame);
+    }
+
+    animRafId = requestAnimationFrame(renderFrame);
+  }
+</script>
 </body>
 </html>
